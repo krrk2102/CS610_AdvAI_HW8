@@ -1,0 +1,63 @@
+% I represent the position before crossing the river as left side, while position across the river as right side.
+
+% Action Signature:
+human(farmer). obj(chicken). obj(fox). obj(seed).
+fluent(inertial, left(farmer)). fluent(inertial, left(chicken)). fluent(inertial, left(fox)). fluent(inertial, left(seed)).
+% MoveRight means take the object across the river, while moveLeft means take it back. 
+action(moveLeft(nothing)).
+action(moveLeft(chicken)). action(moveRight(chicken)).
+action(moveLeft(fox)). action(moveRight(fox)).
+action(moveLeft(seed)). action(moveRight(seed)).
+
+% Dynamic Causal Law:
+% Causal law for moving the object back. 
+holds(left(O), S+1) :- obj(O), step(S), step(S+1), -holds(left(O), S), occurs(moveLeft(O), S).
+% Causal law for moving the object across the river.
+-holds(left(O), S+1) :- obj(O), step(S), step(S+1), holds(left(O), S), occurs(moveRight(O), S).
+% Causal law for farmer's coming back with nothing.
+holds(left(farmer), S+1) :- step(S), step(S+1), -holds(left(farmer), S), occurs(moveLeft(nothing), S).
+% Causal law for the farmer bringing something back.
+holds(left(farmer), S+1) :- obj(O), step(S), step(S+1), -holds(left(farmer), S), occurs(moveLeft(O), S).
+% Causal law for the farmer bringing something across the river.
+-holds(left(farmer), S+1) :- obj(O), step(S), step(S+1), holds(left(farmer), S), occurs(moveRight(O), S).
+
+% Executability condition:
+% Object and farmer must be in the original position, i.e., left side, in order to take the object across the river.
+:- step(S), obj(O), occurs(moveLeft(O), S), holds(left(O), S).
+:- step(S), obj(O), occurs(moveLeft(O), S), holds(left(farmer), S).
+% Object and farmer must be in position across the river, i.e., right side, in order to come back to left side.
+:- step(S), obj(O), occurs(moveRight(O), S), -holds(left(O), S).
+:- step(S), obj(O), occurs(moveRight(O), S), -holds(left(farmer), S).
+% One constraint for the farmer's coming back with nothing.
+:- step(S), occurs(moveLeft(nothing), S), holds(left(farmer), S).
+
+% State Constraint:
+% Chicken and fox cannot be together without farmer.
+:- step(S), holds(left(chicken), S), holds(left(fox), S), -holds(left(farmer), S).
+:- step(S), -holds(left(chicken), S), -holds(left(fox), S), holds(left(farmer), S).
+% Chicken and seed cannot be together without farmer.
+:- step(S), holds(left(chicken), S), holds(left(seed), S), -holds(left(farmer), S).
+:- step(S), -holds(left(chicken), S), -holds(left(seed), S), holds(left(farmer), S).
+
+% Inertia Axiom:
+holds(F, S+1) :- step(S), step(S+1), fluent(inertial, F), holds(F, S), not -holds(F, S+1).
+-holds(F, S+1) :- step(S), step(S+1), fluent(inertial, F), -holds(F, S), not holds(F, S+1).
+
+% Initial State:
+obs(left(farmer), true, 0).
+obs(left(chicken), true, 0).
+obs(left(fox), true, 0).
+obs(left(seed), true, 0).
+holds(F, 0) :- obs(F, true, 0), fluent(inertial, F).
+-holds(F, 0) :- not holds(F, 0), fluent(inertial, F).
+
+% Planning Module & Goal:
+% Use 7 steps should solve the problem.
+#const n = 7.
+step(0..n).
+% Pick one action at a time.
+1{ occurs(A, S): action(A) }1 :- step(S), S < n, not goal(S).
+% Goal: all objects and the farmer come across the river following constraints.
+goal(S) :- step(S), -holds(left(chicken), S), -holds(left(fox), S), -holds(left(seed), S), -holds(left(farmer), S).
+goal :- goal(S).
+:- not goal.
